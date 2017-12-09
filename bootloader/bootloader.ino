@@ -3,7 +3,8 @@
 #include <Ethernet.h>
 
 #define updateFile "update.bin"
-#define firmwareMaxSize 485888
+#define firmwareMaxSize 485888 //1898 pages (2048-150 pages for bootloader)
+#define firmwareStartPage 150 //start page of firmware in flash 0
 #define mac { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED } // the media access control (ethernet hardware) address for the shield
 #define ip { 192, 168, 0, 110 } //the IP address for the shield:
 
@@ -30,6 +31,7 @@ void setup()
     log.println(Ethernet.localIP());
   }
   log.close();
+  //test reading past the end of file result
 }
 
 void loop()
@@ -69,13 +71,24 @@ flash_status = IAP_Function (EFCIndex, flash_cmd);
     uint32_t size = update.size(); //get firmware size
     if (size <= firmwareMaxSize)
     {
-      //Muste be set right before writing
-      EFC0->EEFC_FMR = EEFC_FMR_FWS(CHIP_FLASH_WRITE_WAIT_STATE); //set flash wait state to 6 when writing
-      EFC1->EEFC_FMR = EEFC_FMR_FWS(CHIP_FLASH_WRITE_WAIT_STATE);
-      uint8_t page[256]; //declare page buffer
+      uint8_t page[IFLASH0_PAGE_SIZE]; //declare page buffer
+      uint32_t* buf = (uint32_t*)IFLASH0_ADDR; //Retrieve page latch buffer start address
+      Efc* efcIndex; //placeholder to calculate on which efc to write
       uint32_t (*iap)(uint32_t, uint32_t); //delcare iap function
-      iap = (uint32_t (*)(uint32_t, uint32_t))0x800008; //retrieve function address from nmi vector
-      update.read(page, 256); //read 256 bytes from firmware file and save it to buffer
+      iap = (uint32_t (*)(uint32_t, uint32_t))0x800008; //retrieve function address from nmi vector in rom
+      for (uint16_t x = 0; x < (size / IFLASH0_PAGE_SIZE) + ((size % IFLASH0_PAGE_SIZE) ? 1 : 0); x++) //for each page to write
+      {
+        update.read(page, IFLASH0_PAGE_SIZE); //read one page from firmware file and save it to buffer
+        for (uint8_t y = 0; y < (IFLASH0_PAGE_SIZE / 4); y++) *(buf + (y * 4)) = *(uint32_t*)(page + (y * 4)); //only 32-bit width copy authorized to latch buffer
+        efcIndex = (x / (IFLASH0_NB_OF_PAGES - firmwareStartPage)) ? EFC1 : EFC0;
+        while ((efcIndex->EEFC_FSR & EEFC_FSR_FRDY) == 0); //wait for efc to be ready
+        efcIndex->EEFC_FMR = EEFC_FMR_FWS(CHIP_FLASH_WRITE_WAIT_STATE); //set flash wait state to 6 when writing
+        iap((efcIndex == EFC0) ? 0 : 1, EEFC_FCR_FCMD(0x03) & EEFC_FCR_FARG((efcIndex == EFC0) ? firmwareStartPage + x : x - (IFLASH0_NB_OF_PAGES - firmwareStartPage)) & EEFC_FCR_FKEY(0x5A));
+        efcIndex->EEFC_FMR = EEFC_FMR_FWS(4); //set flash wait state to 4 when reading
+      }
+      
+      
     }
+    update.close(); //close the file
    }
 }
