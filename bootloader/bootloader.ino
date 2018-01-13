@@ -1,9 +1,18 @@
-#include <SPI.h>
-#include <SD.h>
-#include <Ethernet.h>
+/*
+ * pin usage:
+ *  spi header pins: 74,75,76
+ *  sd card slave: 10
+ *  ethernet slave: 4
+ */
 
-#define updateBin "update.bin"
-#define updateLog "update.log"
+#include <SPI.h> //ethernet and sd uses spi
+#include <SD.h> //to use sd card
+#include <Ethernet.h> /to use wiznet ethernet shield
+
+#define updatePin 2 //pin to wait for an firmware upload from serial or ethernet (drive pin 2 low during reset to avoid short circuit)
+#define statusPin 13 //pin to tell status of the device
+#define updateBin "update.bin" //firmware filename
+#define updateLog "update.log" //update log
 #define firmwareStartPage 150 //start page of firmware in flash 0
 #define mac { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED } // the media access control (ethernet hardware) address for the shield
 #define ip { 192, 168, 0, 110 } //the IP address for the shield:
@@ -87,7 +96,8 @@ __asm ("mov r1, r0 \n"
 "blx r0"
    */
 
-   //sd update
+   //sd update --TODO: move to setup, jump to firmware
+   //Possible bugs: reassigning new file object to previously closed one, iap function
    if (SD.exists(updateBin))
    {
     File log = SD.open(updateLog, FILE_WRITE); //log starting update
@@ -96,38 +106,78 @@ __asm ("mov r1, r0 \n"
     log.close();
     File update = SD.open(updateBin); //open firmware read-only
     uint32_t size = update.size(); //get firmware size
+    uint8_t catchError = 0; //used to catch errors (0 means ok, others error codes)
     if (size <= ((IFLASH0_NB_OF_PAGES + IFLASH1_NB_OF_PAGES - firmwareStartPage) * IFLASH0_PAGE_SIZE)) //check if size is ok
     {
+      uint32_t efcStatus; //store efc status before testing if an error has occured
       uint8_t page[IFLASH0_PAGE_SIZE]; //declare page buffer
       uint32_t* buf = (uint32_t*)IFLASH0_ADDR; //Retrieve page latch buffer start address
       Efc* efcIndex; //placeholder to calculate on which efc to write
       uint32_t (*iap)(uint32_t, uint32_t); //delcare iap function
       iap = (uint32_t (*)(uint32_t, uint32_t))(*(uint32_t*)(IROM_ADDR + 8)); //retrieve iap function address from nmi vector in rom because efc command on flash cant be executed from the same flash bank
-      for (uint16_t x = 0; x < (size / IFLASH0_PAGE_SIZE) + ((size % IFLASH0_PAGE_SIZE) ? 1 : 0); x++) //for each page to write
+      for (uint16_t x = 0; x < (size / IFLASH0_PAGE_SIZE) + ((size % IFLASH0_PAGE_SIZE) ? 1 : 0); ++x) //for each page to write
       {
         update.read(page, IFLASH0_PAGE_SIZE); //read one page from firmware file and save it to buffer
-        for (uint8_t y = 0; y < (IFLASH0_PAGE_SIZE / 4); y++) *(buf + (y * 4)) = *(uint32_t*)(page + (y * 4)); //only 32-bit width copy authorized to latch buffer
+        for (uint8_t y = 0; y < (IFLASH0_PAGE_SIZE / 4); ++y) *(buf + (y * 4)) = *(uint32_t*)(page + (y * 4)); //only 32-bit width copy authorized to latch buffer
         efcIndex = (x / (IFLASH0_NB_OF_PAGES - firmwareStartPage)) ? EFC1 : EFC0; //calculate with which efc we need to work
         //__disable_irq();
         while ((efcIndex->EEFC_FSR & EEFC_FSR_FRDY) == 0); //wait for efc to be ready
         efcIndex->EEFC_FMR = EEFC_FMR_FWS(CHIP_FLASH_WRITE_WAIT_STATE); //set flash wait state to 6 when writing
-        iap((efcIndex == EFC0) ? 0 : 1, EEFC_FCR_FCMD(0x03) & EEFC_FCR_FARG((efcIndex == EFC0) ? firmwareStartPage + x : x - (IFLASH0_NB_OF_PAGES - firmwareStartPage)) & EEFC_FCR_FKEY(0x5A)); //call iap function from rom to send command to efc
+        efcStatus = iap((efcIndex == EFC0) ? 0 : 1, EEFC_FCR_FCMD(0x03) & EEFC_FCR_FARG((efcIndex == EFC0) ? firmwareStartPage + x : x - (IFLASH0_NB_OF_PAGES - firmwareStartPage)) & EEFC_FCR_FKEY(0x5A)); //call iap function from rom to send command to efc
         efcIndex->EEFC_FMR = EEFC_FMR_FWS(4); //set flash wait state to 4 when reading
         //__enable_irq();
-      }      
+        if ((efcStatus & (EEFC_FSR_FRDY | EEFC_FSR_FCMDE | EEFC_FSR_FLOCKE)) != EEFC_FSR_FRDY)
+        {
+          catchError = 2; //throw programming error
+          break; //exit for loop
+        }
+      }
     }
+    else catchError = 1; //update firmware file is too big
     update.close(); //close the firmware file
-    log = SD.open(updateLog, FILE_WRITE); //log flash programming done
-    log.println("Flash programming done. Verifying...");
+    log = SD.open(updateLog, FILE_WRITE); //open log to save information
+    if (catchError) //if an error has been catched
+    {
+      if (catchError == 1) log.println("Update firmware file is too big!");
+      else if (catchError == 2) log.println("Flash programming error!");
+    }
+    else
+    {
+      log.println("Flash programming done. Verifying...");
+      log.close();
+      File update = SD.open(updateBin); //open firmware file read-only
+      uint8_t page[IFLASH0_PAGE_SIZE]; //declare page buffer
+      uint32_t* pageStart; //used to store page start address
+      for (uint16_t x = 0; x < (size / IFLASH0_PAGE_SIZE) + ((size % IFLASH0_PAGE_SIZE) ? 1 : 0); ++x) //for each page to verify
+      {
+        update.read(page, IFLASH0_PAGE_SIZE); //read one page from firmware file and save it to buffer
+        pageStart = (uint32_t*)(IFLASH0_ADDR + (firmwareStartPage * IFLASH0_PAGE_SIZE) + (x * IFLASH0_PAGE_SIZE)); //Retrieve page start address
+        for (uint8_t y = 0; y < (IFLASH0_PAGE_SIZE / 4); ++y) //for each 32-bit word in page
+        {
+          if (*(uint32_t*)(page + (y * 4)) != *(pageStart + y)) //if file and programmed values are different
+          {
+            catchError = 3; //throw flash verification error
+            break; //exit for loop
+          }
+        }
+        if (catchError) break; //exit for loop if an error has been catched
+      }
+      update.close(); //close the firmware file
+      log = SD.open(updateLog, FILE_WRITE); //open log to save information
+    }
+    if (catchError) //if an error has been catched
+    {
+      if (catchError == 3) log.println("Flash verifying error!");
+    }
+    else
+    {
+      log.println("Verify successfull!");
+      log.print("Renaming ");
+      log.print(updateBin);
+      log.println(" to current.bin");
+    }
     log.close();
-    //verify flash
-    log = SD.open(updateLog, FILE_WRITE); //log verify successfull
-    log.println("Verify successfull!");
-    log.print("Renaming ");
-    log.print(updateBin);
-    log.println(" to current.bin");
-    log.close();
-    //rename update.bin to current.bin
+    
     //jump to firmware
    }
 }
