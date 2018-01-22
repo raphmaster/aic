@@ -114,9 +114,18 @@ bool sdUpdate()
   }
 }
 
+//jump to the firmware
 void bootJump()
 {
-  
+  __disable_irq(); //ensure no interrupts will be called until we are fully jumped to firmware
+  /*__DSB();
+  __ISB();*/
+  SCB->VTOR = ; //relocate vector table to the one in the firmware
+  __set_MSP(Address[ 0 ]); //set main stack pointer to the one found in vtor of the firmware
+  /*__DSB();
+  __ISB();*/
+  ( ( void ( * )( void ) )Address[ 1 ] )( ) ; //set the program counter to the reset handler in vtor via function call
+  //firmware should re-enable irqs
 }
 
 void setup()
@@ -194,6 +203,6 @@ __asm ("mov r1, r0 \n"
   if (waitUpload)
   {
     
+    
   }
-
 }
