@@ -1,0 +1,22 @@
+adb.name=Arduino Due Bootloader (Programming Port)
+adb.build.board=SAM_DUE
+adb.build.mcu=cortex-m3
+adb.build.f_cpu=84000000L
+adb.build.core=arduino:arduino
+adb.build.variant=arduino:arduino_due_x
+adb.build.extra_flags=-D__SAM3X8E__ -mthumb {build.usb_flags}
+adb.build.usb_manufacturer="Arduino LLC"
+adb.build.usb_product="Arduino Due"
+adb.build.vid=0x2341
+adb.build.pid=0x003e
+adb.build.ldscript=linker-scripts/bootloader.ld
+adb.build.custom_system.path={runtime.platform.path}/system
+adb.upload.tool=arduino:bossac
+adb.upload.protocol=sam-ba
+adb.upload.maximum_size=262144
+adb.upload.maximum_data_size=98304
+adb.upload.use_1200bps_touch=true
+adb.upload.wait_for_upload_port=false
+adb.upload.native_usb=false
+#to be removed
+adb.build.variant_system_lib=libsam_sam3x8e_gcc_rel.a
