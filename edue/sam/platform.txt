@@ -7,7 +7,7 @@ version=1.0
 #Mofifications to referenced platform.txt
 #----------------------------------------
 
-recipe.hooks.sketch.prebuild.01.pattern=mkdir {build.path}/system
+recipe.hooks.sketch.prebuild.01.pattern=mkdir -p {build.path}/system
 
 recipe.hooks.sketch.prebuild.02.pattern="{compiler.path}{compiler.c.cmd}" {compiler.c.flags} -mcpu={build.mcu} -mthumb -DF_CPU={build.f_cpu} -DARDUINO={runtime.ide.version} -DARDUINO_{build.board} -DARDUINO_ARCH_{build.arch} {compiler.c.extra_flags} {build.extra_flags} {compiler.libsam.includes} {build.custom_system.path}/CMSIS/Device/ATMEL/sam3xa/source/gcc/startup_sam3xa.c -o {build.path}/system/startup_sam3xa.o
 

@@ -186,10 +186,10 @@ void Reset_Handler(void)
 	}
 
 	/* Set the vector table base address */
-	/*pSrc = (uint32_t *) & _sfixed;
-	SCB->VTOR = ((uint32_t) pSrc & SCB_VTOR_TBLOFF_Msk);*/
-	
-	SCB->VTOR = 0x80000 & SCB_VTOR_TBLOFF_Msk;
+	pSrc = (uint32_t*)&_sfixed;
+	SCB->VTOR = ((uint32_t)pSrc & SCB_VTOR_TBLOFF_Msk);
+
+	//SCB->VTOR = 0x80000 & SCB_VTOR_TBLOFF_Msk;
 
 	/*if (((uint32_t) pSrc >= IRAM0_ADDR) && ((uint32_t) pSrc < NFC_RAM_ADDR)) {
 		SCB->VTOR |= (1UL) << SCB_VTOR_TBLBASE_Pos;
@@ -199,6 +199,8 @@ void Reset_Handler(void)
 
 	// Arduino: we must setup hardware before doing this
 	//__libc_init_array();
+
+	__enable_irq(); //Re-enable interrupts from boot jump
 
 	/* Branch to main function */
 	main();

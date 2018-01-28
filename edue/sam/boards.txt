@@ -13,10 +13,8 @@ adb.build.ldscript=linker-scripts/bootloader.ld
 adb.build.custom_system.path={runtime.platform.path}/system
 adb.upload.tool=arduino:bossac
 adb.upload.protocol=sam-ba
-adb.upload.maximum_size=262144
+adb.upload.maximum_size=48640
 adb.upload.maximum_data_size=98304
 adb.upload.use_1200bps_touch=true
 adb.upload.wait_for_upload_port=false
 adb.upload.native_usb=false
-#to be removed
-adb.build.variant_system_lib=libsam_sam3x8e_gcc_rel.a
