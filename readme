@@ -1,0 +1,4 @@
+aic (Arduino Industrial Controller)
+
+edue directory is a hardware directory for arduino ide to define 2 new boards
+Arduino Due Bootloader (Programming Port) can be used to write a bootloader in arduino due flash memory. The bootloader will then enable flash reprogramming from firmware file on sd card and file transfer to sd card from ethernet or serial. The new firmware to be reprogrammed via bootloader must be compiled with Arduino Due Firmware board selectionned.

@@ -5,6 +5,11 @@
  *  ethernet slave: 4
  */
 
+/*
+ * TODO:
+ * wait for upload from ethernet or serial, update and bootjump
+ */
+
 #include <SPI.h> //ethernet and sd uses spi
 #include <SD.h> //to use sd card
 #include <Ethernet.h> /to use wiznet ethernet shield
@@ -14,7 +19,7 @@
 #define sdPin 4 //slave select for sd card
 #define updateBin "update.bin" //firmware filename
 #define updateLog "update.log" //update log
-#define firmwareStartPage 150 //start page of firmware in flash 0
+#define firmwareStartPage 190 //start page of firmware in flash 0
 #define mac { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED } // the media access control (ethernet hardware) address for the shield
 #define ip { 192, 168, 0, 110 } //the IP address for the shield:
 
