@@ -1,35 +1,60 @@
 # For more info:
 # https://github.com/arduino/Arduino/wiki/Arduino-IDE-1.5-3rd-party-Hardware-specification
 
-name=Enhanced Arduino ARM Boards
+name=Enhanced Arduino Due
 version=1.0
 
 #Mofifications to referenced platform.txt
 #----------------------------------------
 
-#recipe.hooks.objcopy.postobjcopy.1.pattern=echo {build.custom_system.path}
+recipe.hooks.sketch.prebuild.01.pattern=mkdir {build.path}/system
+
+recipe.hooks.sketch.prebuild.02.pattern="{compiler.path}{compiler.c.cmd}" {compiler.c.flags} -mcpu={build.mcu} -mthumb -DF_CPU={build.f_cpu} -DARDUINO={runtime.ide.version} -DARDUINO_{build.board} -DARDUINO_ARCH_{build.arch} {compiler.c.extra_flags} {build.extra_flags} {compiler.libsam.includes} {build.custom_system.path}/CMSIS/Device/ATMEL/sam3xa/source/gcc/startup_sam3xa.c -o {build.path}/system/startup_sam3xa.o
+
+recipe.hooks.sketch.prebuild.03.pattern="{compiler.path}{compiler.c.cmd}" {compiler.c.flags} -mcpu={build.mcu} -mthumb -DF_CPU={build.f_cpu} -DARDUINO={runtime.ide.version} -DARDUINO_{build.board} -DARDUINO_ARCH_{build.arch} {compiler.c.extra_flags} {build.extra_flags} {compiler.libsam.includes} {build.custom_system.path}/CMSIS/Device/ATMEL/sam3xa/source/system_sam3xa.c -o {build.path}/system/system_sam3xa.o
+
+recipe.hooks.sketch.prebuild.04.pattern="{compiler.path}{compiler.c.cmd}" {compiler.c.flags} -mcpu={build.mcu} -mthumb -DF_CPU={build.f_cpu} -DARDUINO={runtime.ide.version} -DARDUINO_{build.board} -DARDUINO_ARCH_{build.arch} {compiler.c.extra_flags} {build.extra_flags} {compiler.libsam.includes} {build.custom_system.path}/libsam/source/pio.c -o {build.path}/system/pio.o
+
+recipe.hooks.sketch.prebuild.05.pattern="{compiler.path}{compiler.c.cmd}" {compiler.c.flags} -mcpu={build.mcu} -mthumb -DF_CPU={build.f_cpu} -DARDUINO={runtime.ide.version} -DARDUINO_{build.board} -DARDUINO_ARCH_{build.arch} {compiler.c.extra_flags} {build.extra_flags} {compiler.libsam.includes} {build.custom_system.path}/libsam/source/spi.c -o {build.path}/system/spi.o
+
+recipe.hooks.sketch.prebuild.06.pattern="{compiler.path}{compiler.c.cmd}" {compiler.c.flags} -mcpu={build.mcu} -mthumb -DF_CPU={build.f_cpu} -DARDUINO={runtime.ide.version} -DARDUINO_{build.board} -DARDUINO_ARCH_{build.arch} {compiler.c.extra_flags} {build.extra_flags} {compiler.libsam.includes} {build.custom_system.path}/libsam/source/adc.c -o {build.path}/system/adc.o
+
+recipe.hooks.sketch.prebuild.07.pattern="{compiler.path}{compiler.c.cmd}" {compiler.c.flags} -mcpu={build.mcu} -mthumb -DF_CPU={build.f_cpu} -DARDUINO={runtime.ide.version} -DARDUINO_{build.board} -DARDUINO_ARCH_{build.arch} {compiler.c.extra_flags} {build.extra_flags} {compiler.libsam.includes} {build.custom_system.path}/libsam/source/pmc.c -o {build.path}/system/pmc.o
+
+recipe.hooks.sketch.prebuild.08.pattern="{compiler.path}{compiler.c.cmd}" {compiler.c.flags} -mcpu={build.mcu} -mthumb -DF_CPU={build.f_cpu} -DARDUINO={runtime.ide.version} -DARDUINO_{build.board} -DARDUINO_ARCH_{build.arch} {compiler.c.extra_flags} {build.extra_flags} {compiler.libsam.includes} {build.custom_system.path}/libsam/source/timetick.c -o {build.path}/system/timetick.o
+
+recipe.hooks.sketch.prebuild.09.pattern="{compiler.path}{compiler.c.cmd}" {compiler.c.flags} -mcpu={build.mcu} -mthumb -DF_CPU={build.f_cpu} -DARDUINO={runtime.ide.version} -DARDUINO_{build.board} -DARDUINO_ARCH_{build.arch} {compiler.c.extra_flags} {build.extra_flags} {compiler.libsam.includes} {build.custom_system.path}/libsam/source/wdt.c -o {build.path}/system/wdt.o
+
+recipe.hooks.sketch.prebuild.10.pattern="{compiler.path}{compiler.c.cmd}" {compiler.c.flags} -mcpu={build.mcu} -mthumb -DF_CPU={build.f_cpu} -DARDUINO={runtime.ide.version} -DARDUINO_{build.board} -DARDUINO_ARCH_{build.arch} {compiler.c.extra_flags} {build.extra_flags} {compiler.libsam.includes} {build.custom_system.path}/libsam/source/uotghs_device.c -o {build.path}/system/uotghs_device.o
+
+recipe.hooks.sketch.prebuild.11.pattern="{compiler.path}{compiler.c.cmd}" {compiler.c.flags} -mcpu={build.mcu} -mthumb -DF_CPU={build.f_cpu} -DARDUINO={runtime.ide.version} -DARDUINO_{build.board} -DARDUINO_ARCH_{build.arch} {compiler.c.extra_flags} {build.extra_flags} {compiler.libsam.includes} {build.custom_system.path}/libsam/source/uotghs.c -o {build.path}/system/uotghs.o
+
+recipe.hooks.sketch.prebuild.12.pattern="{compiler.path}{compiler.c.cmd}" {compiler.c.flags} -mcpu={build.mcu} -mthumb -DF_CPU={build.f_cpu} -DARDUINO={runtime.ide.version} -DARDUINO_{build.board} -DARDUINO_ARCH_{build.arch} {compiler.c.extra_flags} {build.extra_flags} {compiler.libsam.includes} {build.custom_system.path}/libsam/source/interrupt_sam_nvic.c -o {build.path}/system/interrupt_sam_nvic.o
+
+recipe.hooks.objcopy.postobjcopy.1.pattern="{compiler.path}{compiler.size.cmd}" -A "{build.path}/{build.project_name}.elf"
 
 # SAM3 compile variables
 # ----------------------
 
 compiler.c.flags=-c -Os {compiler.warning_flags} -std=gnu11 -ffunction-sections -fdata-sections -nostdlib --param max-inline-insns-single=500 -Dprintf=iprintf -MMD
+
 compiler.S.flags=-c -x assembler-with-cpp -MMD
+
 compiler.cpp.flags=-c -Os {compiler.warning_flags} -std=gnu++11 -ffunction-sections -fdata-sections -nostdlib -fno-threadsafe-statics --param max-inline-insns-single=500 -fno-rtti -fno-exceptions -Dprintf=iprintf -MMD
 
-#to be removed
-compiler.libsam.c.flags="-I{build.custom_system.path}/libsam" "-I{build.custom_system.path}/CMSIS/CMSIS/Include/" "-I{build.custom_system.path}/CMSIS/Device/ATMEL/"
+compiler.libsam.includes="-I{build.custom_system.path}/libsam" "-I{build.custom_system.path}/CMSIS/CMSIS/Include/" "-I{build.custom_system.path}/CMSIS/Device/ATMEL/" -I{build.custom_system.path}/CMSIS/Device/ATMEL/sam3xa/include -I{build.custom_system.path}/CMSIS/Device/ATMEL/sam3xa/include/component -I{build.custom_system.path}/CMSIS/Device/ATMEL/sam3xa/include/instance -I{build.custom_system.path}/CMSIS/Device/ATMEL/sam3xa/include/pio -I{build.custom_system.path}/libsam/include
 
 # SAM3 compile patterns
 # ---------------------
 
 ## Compile c files
-recipe.c.o.pattern="{compiler.path}{compiler.c.cmd}" {compiler.c.flags} -mcpu={build.mcu} -mthumb -DF_CPU={build.f_cpu} -DARDUINO={runtime.ide.version} -DARDUINO_{build.board} -DARDUINO_ARCH_{build.arch} {compiler.c.extra_flags} {build.extra_flags} {compiler.libsam.c.flags} {includes} "{source_file}" -o "{object_file}"
+recipe.c.o.pattern="{compiler.path}{compiler.c.cmd}" {compiler.c.flags} -mcpu={build.mcu} -mthumb -DF_CPU={build.f_cpu} -DARDUINO={runtime.ide.version} -DARDUINO_{build.board} -DARDUINO_ARCH_{build.arch} {compiler.c.extra_flags} {build.extra_flags} {compiler.libsam.includes} {includes} "{source_file}" -o "{object_file}"
 
 ## Compile c++ files
-recipe.cpp.o.pattern="{compiler.path}{compiler.cpp.cmd}" {compiler.cpp.flags} -mcpu={build.mcu} -mthumb -DF_CPU={build.f_cpu} -DARDUINO={runtime.ide.version} -DARDUINO_{build.board} -DARDUINO_ARCH_{build.arch} {compiler.cpp.extra_flags} {build.extra_flags} {compiler.libsam.c.flags} {includes} "{source_file}" -o "{object_file}"
+recipe.cpp.o.pattern="{compiler.path}{compiler.cpp.cmd}" {compiler.cpp.flags} -mcpu={build.mcu} -mthumb -DF_CPU={build.f_cpu} -DARDUINO={runtime.ide.version} -DARDUINO_{build.board} -DARDUINO_ARCH_{build.arch} {compiler.cpp.extra_flags} {build.extra_flags} {compiler.libsam.includes} {includes} "{source_file}" -o "{object_file}"
 
 ## Compile S files
-recipe.S.o.pattern="{compiler.path}{compiler.S.cmd}" {compiler.S.flags} -mcpu={build.mcu} -mthumb -DF_CPU={build.f_cpu} -DARDUINO={runtime.ide.version} -DARDUINO_{build.board} -DARDUINO_ARCH_{build.arch} {compiler.S.extra_flags} {build.extra_flags} {compiler.libsam.c.flags} {includes} "{source_file}" -o "{object_file}"
+recipe.S.o.pattern="{compiler.path}{compiler.S.cmd}" {compiler.S.flags} -mcpu={build.mcu} -mthumb -DF_CPU={build.f_cpu} -DARDUINO={runtime.ide.version} -DARDUINO_{build.board} -DARDUINO_ARCH_{build.arch} {compiler.S.extra_flags} {build.extra_flags} {compiler.libsam.includes} {includes} "{source_file}" -o "{object_file}"
 
 ## Create archives
 # archive_file_path is needed for backwards compatibility with IDE 1.6.5 or older, IDE 1.6.6 or newer overrides this value
@@ -37,7 +62,7 @@ archive_file_path={build.path}/{archive_file}
 recipe.ar.pattern="{compiler.path}{compiler.ar.cmd}" {compiler.ar.flags} {compiler.ar.extra_flags} "{archive_file_path}" "{object_file}"
 
 ## Combine gc-sections, archives, and objects
-recipe.c.combine.pattern="{compiler.path}{compiler.c.elf.cmd}" -mcpu={build.mcu} -mthumb {compiler.c.elf.flags} "-T{runtime.platform.path}/{build.ldscript}" "-Wl,-Map,{build.path}/{build.project_name}.map" {compiler.c.elf.extra_flags} -o "{build.path}/{build.project_name}.elf" "-L{build.path}" -Wl,--cref -Wl,--check-sections -Wl,--gc-sections -Wl,--entry=Reset_Handler -Wl,--unresolved-symbols=report-all -Wl,--warn-common -Wl,--warn-section-align -Wl,--start-group {compiler.combine.flags} {object_files} "{build.variant.path}/{build.variant_system_lib}" "{build.path}/{archive_file}" -Wl,--end-group -lm -gcc
+recipe.c.combine.pattern="{compiler.path}{compiler.c.elf.cmd}" -mcpu={build.mcu} -mthumb {compiler.c.elf.flags} "-T{runtime.platform.path}/{build.ldscript}" "-Wl,-Map,{build.path}/{build.project_name}.map" {compiler.c.elf.extra_flags} -o "{build.path}/{build.project_name}.elf" "-L{build.path}" -Wl,--cref -Wl,--check-sections -Wl,--gc-sections -Wl,--entry=Reset_Handler -Wl,--unresolved-symbols=report-all -Wl,--warn-common -Wl,--warn-section-align -Wl,--start-group {compiler.combine.flags} {object_files} {build.path}/system/startup_sam3xa.o {build.path}/system/system_sam3xa.o {build.path}/system/pio.o {build.path}/system/spi.o {build.path}/system/adc.o {build.path}/system/pmc.o {build.path}/system/timetick.o {build.path}/system/wdt.o {build.path}/system/uotghs_device.o {build.path}/system/uotghs.o {build.path}/system/interrupt_sam_nvic.o "{build.path}/{archive_file}" -Wl,--end-group -lm -gcc
 
 ## Create output (.bin file)
 recipe.objcopy.bin.pattern="{compiler.path}{compiler.elf2hex.cmd}" {compiler.elf2hex.flags} {compiler.elf2hex.extra_flags} "{build.path}/{build.project_name}.elf" "{build.path}/{build.project_name}.bin"
@@ -48,6 +73,5 @@ recipe.output.save_file={build.project_name}.{build.variant}.bin
 
 ## Compute size
 recipe.size.pattern="{compiler.path}{compiler.size.cmd}" -A "{build.path}/{build.project_name}.elf"
-#recipe.size.regex=\.text\s+([0-9]+).*
-recipe.size.regex=^(?:\.text|\.data)\s+([0-9]+).*
-recipe.size.regex.data=^(?:\.data|\.bss|)\s+([0-9]+).*
+recipe.size.regex=^(?:\.text|\.relocate|\.ARM\.exidx)\s+([0-9]+).*
+recipe.size.regex.data=^(?:\.relocate|\.bss|)\s+([0-9]+).*
