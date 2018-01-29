@@ -117,6 +117,7 @@ bool sdUpdate()
     if (catchError) return false; //if we encountered errors, return false
     else return true;
   }
+  else return false; //no update file, update failed
 }
 
 //jump to the firmware
@@ -148,7 +149,8 @@ void setup()
     {
       log.close(); //close log file because sdUpdate will reopen it
       if (sdUpdate()) bootJump(); //do the flash programming, if success jump to firmware
-      else waitUpload = true; //else wait for an upload
+      waitUpload = true; //else wait for an upload
+      log = SD.open(updateLog, FILE_WRITE); //re-open log file
     }
     else if (!digitalRead(updatePin)) //if no update file on the sd card and pin is driven low
     {
