@@ -12,7 +12,7 @@
 
 #include <SPI.h> //ethernet and sd uses spi
 #include <SD.h> //to use sd card
-#include <Ethernet.h> /to use wiznet ethernet shield
+#include <Ethernet.h> //to use wiznet ethernet shield
 
 #define updatePin 2 //pin to wait for an firmware upload from serial or ethernet (drive pin 2 low during reset to avoid short circuit)
 #define statusPin 13 //pin to tell status of the device
@@ -124,13 +124,9 @@ bool sdUpdate()
 void bootJump()
 {
   __disable_irq(); //ensure no interrupts will be called until we are fully jumped to firmware
-  /*__DSB();
-  __ISB();*/
   uint32_t* vtor = (uint32_t*)(IFLASH0_ADDR + (firmwareStartPage * IFLASH0_PAGE_SIZE)); //calculate firmware vector table start address
   SCB->VTOR = (uint32_t)vtor; //relocate vector table to the one in the firmware
   __set_MSP(*vtor); //set main stack pointer to the one found in vtor of the firmware
-  /*__DSB();
-  __ISB();*/
   ((void(*)(void))vtor[1])(); //set the program counter to the reset handler in vtor via function call
   //firmware should re-enable irqs
 }
@@ -165,8 +161,8 @@ void setup()
       bootJump(); //jump to firmware
     }
     //ethernet init
-    byte _mac[] = mac;
-    byte _ip[] = ip;
+    uint8_t _mac[] = mac;
+    uint8_t _ip[] = ip;
     Ethernet.begin(_mac, _ip); //gateway defaults to 192.168.0.1 and subnet to 255.255.255.0
     server.begin(); //start listening for clients
     log.print("ethernet server running at "); //log ethernet init
@@ -178,8 +174,12 @@ void setup()
 
 void loop()
 {
-  if (waitUpload)
+  if (waitUpload) //if we need to wait for an upload from ethernet or serial
   {
-    
+    EthernetClient client = server.available(); //Check if new client is connected
+    if (client) //if a new client is connected
+    {
+      
+    }
   }
 }
