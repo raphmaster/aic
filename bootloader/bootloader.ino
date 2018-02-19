@@ -24,7 +24,10 @@
 #define ip { 192, 168, 0, 110 } //the IP address for the shield:
 
 EthernetServer server(80); //Initialize ethernet server on port 80
-bool waitUpload = false; //tell to the main loop to listen for upload from serial or ethernet
+uint32_t blinkTime = 0; //used to store millis for blinking
+bool blinkStatus = HIGH; //used to store blink status
+uint8_t data; //received data
+uint8_t steps = 0; //used to control code execution
 
 //set flash wait state in flash mode register from ram function because register cannot be written during corresponding flash read
 __attribute__ ((section(".ramfunc")))
@@ -145,7 +148,7 @@ void setup()
     {
       log.close(); //close log file because sdUpdate will reopen it
       if (sdUpdate()) bootJump(); //do the flash programming, if success jump to firmware
-      waitUpload = true; //else wait for an upload
+      steps = 1; //else wait for an upload
       log = SD.open(updateLog, FILE_WRITE); //re-open log file
     }
     else if (!digitalRead(updatePin)) //if no update file on the sd card and pin is driven low
@@ -153,7 +156,7 @@ void setup()
       log.print("pin "); //pin 2 driven low, waiting for an upload from serial or ethernet
       log.print(updatePin);
       log.print(" driven low. waiting for an upload from serial or ethernet...");
-      waitUpload = true; //will need to wait for an upload from serial or ethernet before jumping to the firmware
+      steps = 1; //will need to wait for an upload from serial or ethernet before jumping to the firmware
     }
     else //if no update is needed
     {
@@ -174,12 +177,24 @@ void setup()
 
 void loop()
 {
-  if (waitUpload) //if we need to wait for an upload from ethernet or serial
+  if (steps >= 1) //if we need to wait for an upload from ethernet or serial
   {
-    EthernetClient client = server.available(); //Check if new client is connected
-    if (client) //if a new client is connected
+    EthernetClient client = server.available(); //Check if a client is connected and has data available for reading
+    if (client) //if a client is connected and has data available
     {
-      
+      data = client.read(); //read one byte from received data
+      if (data == 'F') //if someone is ready to upload firmware
+      {
+        client.write(data); //reply that we are ready too
+        steps = 2;
+      }
+    }
+    //check for upload from serial
+    if ((millis() - blinkTime) >= 1000) //toggle led every 1000 ms to signal user we are waiting for upload
+    {
+      digitalWrite(statusPin, !blinkStatus); //toggle led status
+      blinkStatus = !blinkStatus; //save new status
+      blinkTime = millis(); //save new time
     }
   }
 }
