@@ -24,8 +24,23 @@ close socket
 
 #include <iostream>
 #include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+//#include <sys/types.h>
+//#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+#define port 1025
+#define startUploadCmd "F"
+#define pageUploadCmd "P"
+#define bufferSize 256
 
 int tcpSocket; //store tcp socket file descriptor
+in_addr ipAddr; //store ipv4 address in network nyte order (MSB)
+int firmware; //firmware file decriptor
+sockaddr_in saddr; //socket address
+char buf[bufferSize]; //multi usage buffer
 
 /*
 Display usage and description
@@ -39,16 +54,42 @@ int main(int argc, char *argv[])
 {
 	try
 	{
-		if (argc < 3) //catch invalid number of arguments
+		if (argc != 3) //catch invalid number of arguments
 		{
 			displayUsage();
-			return -1;
+			throw("\nInvalid number of arguments");
 		}
-		//recover ip argument and check for correctness
-		//open firmware, will catch invalid file path
-		tcpSocket = socket(AF_INET, SOCK_STREAM, 0);
-		if (tcpSocket == -1) throw("Failed to create a socket file descriptor");
-		
+		if (!inet_aton(argv[1], &ipAddr)) //validate ip address
+		{
+			displayUsage();
+			throw("\nInvalid ipv4 address");
+		}
+		firmware = open(argv[2], O_RDONLY); //try to open firmware file
+		if (firmware == -1) //if firmware file could not be opened
+		{
+			displayUsage();
+			throw("\nUnable to open firmware file for reading");
+		}
+		tcpSocket = socket(AF_INET, SOCK_STREAM, 0); //try to create a tcp socket
+		if (tcpSocket == -1) throw("Failed to create a socket file descriptor"); //catch errors
+		saddr = {AF_INET, htons(port), ipAddr};
+		if (connect(tcpSocket, (sockaddr *)&saddr, sizeof(saddr)) == -1) throw("Failed to connect to Arduino Due"); //try to connect to arduino server, catch errors
+		if (write(tcpSocket, startUploadCmd, 1) < 1) throw("Failed to send upload firmware command"); //try to send upload command
+		if (read(tcpSocket, buf, 1) < 1) throw("Failed to receive firmware upload acknownledgement from Arduino Due"); //check for ack
+		int dataRead = 0; //stores data read command result
+		do
+		{
+			dataRead = read(firmware, buf, bufferSize); //try to read data from file
+			if (dataRead == -1) throw("Failed to read firmware data"); //read error
+			else if (dataRead == 0) break; //no more data, exit loop
+			if (write(tcpSocket, pageUploadCmd, 1) < 1) throw("Failed to send page upload command"); //try to send page upload command
+			if (write(tcpSocket, buf, dataRead) < dataRead) throw("Failed to send firmware data"); //try to send data read
+			//wait signal from arduino to continue upload
+		}
+		while (dataRead >= 0) //loop until there is data read in file
+		std::cout << "ready to upload...\n";
+		if (close(firmware) == -1) throw("Failed to close firmware file"); //try to close file
+		if (close(tcpSocket) == -1) throw("Failed to close socket"); //try to close socket
 	}
 	catch(const char *e)
 	{

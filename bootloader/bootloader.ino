@@ -23,7 +23,7 @@
 #define mac { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED } // the media access control (ethernet hardware) address for the shield
 #define ip { 192, 168, 0, 110 } //the IP address for the shield:
 
-EthernetServer server(80); //Initialize ethernet server on port 80
+EthernetServer server(1025); //Initialize ethernet server on port 80
 uint32_t blinkTime = 0; //used to store millis for blinking
 bool blinkStatus = HIGH; //used to store blink status
 uint8_t data; //received data
@@ -183,10 +183,14 @@ void loop()
     if (client) //if a client is connected and has data available
     {
       data = client.read(); //read one byte from received data
-      if (data == 'F') //if someone is ready to upload firmware
+      if (steps == 1 && data == 'F') //if someone is ready to upload firmware
       {
         client.write(data); //reply that we are ready too
         steps = 2;
+      }
+      else if (steps == 2) //if we are receiving firmware data
+      {
+        
       }
     }
     //check for upload from serial
