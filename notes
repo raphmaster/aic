@@ -1,0 +1,49 @@
+inter module communication in same serial daisy chain:
+    -each module have a RX and TX
+    -TX from one module is connected to RX of the next module
+    -the last module TX is connected to the first module RX
+    -each module must have an id
+    -id 0 for module in bootloader mode
+    -id 255 to send a messsage to all module
+    -if a module receive a within chain type message which source module id is equal to current module id, do not send the message again
+
+inter module communication in different serial daisy chain:
+    -over ethernet/ipv4
+    -reserved bootloader mac {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF} and ip {192, 168, 0, xxx}
+    -module with HAS_ETHERNET defined have access to ethernet
+    -inter chain messages can only be sent to another chain by module with HAS_ETHERNET
+    -module with HAS_ETHERNET keep track of which module ids are on the daisy chain:
+        -when module switch to run mode, it asks each module in the chain for their id and save them to sd card
+	-when module receive a inter chain type message, if destination module id do not exists in the chain, do not send the message and notify source module
+
+inter module/chain messages header:
+    -message header format depend on message header type
+    -byte 0: type (inter chain or within chain)
+    -inter chain type:
+	-byte[1-4]: source ip
+	-byte 5: source module id
+	-byte[6-9]: destination ip
+	-byte 10: destination module id
+	-byte 11: message id
+	-byte[12-13]: message data size
+	-byte[14+]: message data
+    -within chain type:
+	-byte 1: source module id
+	-byte 2: destination module id
+	-byte 3: message id
+	-byte[4-5]: message data size
+	-byte[6+]: message data
+
+bootloader:
+    -at startup, if HAS_ETHERNET:
+	-if update.bin file is detected, replace current firmware with the content of that file
+	-else if specific pin is driven low, wait for an upload from serial or ethernet
+	-else if firmware switched to bootloader (check gpbr), wait for an upload from serial or ethernet
+	-else jump to firmware
+    -at startup, if not defined HAS_ETHERNET:
+	-if specific pin is driven low, wait for an upload from serial
+	-else if firmware switched to bootloader (check gpbr), wait for an upload from serial
+	-else jump to firmware
+    -implements inter module/chain message system
+    -specific message id puts firmware in bootloader mode
+    -
