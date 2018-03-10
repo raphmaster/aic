@@ -8,12 +8,19 @@
 /*
  * TODO:
  * wait for upload from ethernet or serial, update and bootjump
+ * reset update bit at the end of firmware update
  */
 
+#define HAS_ETHERNET //Must be defined if ethernet shield is attached
+
+#ifdef HAS_ETHERNET
 #include <SPI.h> //ethernet and sd uses spi
 #include <SD.h> //to use sd card
 #include <Ethernet.h> //to use wiznet ethernet shield
+#endif
+#include <dcnMsgHeader.hpp>
 
+#define moduleID 0 //module id in daisy chain uart configuration (all module in bootloader mode will have same id, message will be read by the first one in chain)
 #define updatePin 2 //pin to wait for an firmware upload from serial or ethernet (drive pin 2 low during reset to avoid short circuit)
 #define statusPin 13 //pin to tell status of the device
 #define sdPin 4 //slave select for sd card
@@ -28,11 +35,13 @@
 #define endCmd 'E'
 #define verifyCmd 'V'
 #define bufferSize 256
-#define moduleID 0 //module id in daisy chain uart configuration (all module in bootloader mode will have same id, message will be read by the first one in chain)
+#define firmwareUpdateBit (0x1 << 0)
 
+#ifdef HAS_ETHERNET
 EthernetServer server(1025); //Initialize ethernet server on port 80
 EthernetClient client; //generic client object (only one client can be connected at a time on one server)
 File gfile; //generic file object reused several times because only one file can be opened at a time
+#endif
 uint32_t blinkTime = 0; //used to store millis for blinking
 bool blinkStatus = HIGH; //used to store blink status
 uint8_t data; //received data
@@ -48,6 +57,7 @@ void setFMR(Efc* efc, uint32_t value)
   efc->EEFC_FMR = (value & EEFC_FMR_FWS_Msk); //change fmr
 }
 
+#ifdef HAS_ETHERNET
 //perform firmware programming from file on sd card
 bool sdUpdate()
 {
@@ -134,6 +144,7 @@ bool sdUpdate()
   }
   else return false; //no update file, update failed
 }
+#endif
 
 //jump to the firmware
 void bootJump()
@@ -152,6 +163,7 @@ void setup()
   pinMode(statusPin, OUTPUT); //config status pin
   digitalWrite(statusPin, HIGH); //say that we are in bootloader mode
   Serial.begin(9600); //init serial
+#ifdef HAS_ETHERNET
   if (SD.begin(sdPin)) //if sd init successfull
   {
     gfile = SD.open(updateLog, FILE_WRITE); //open or create boot log
@@ -167,8 +179,15 @@ void setup()
     {
       gfile.print("pin "); //pin 2 driven low, waiting for an upload from serial or ethernet
       gfile.print(updatePin);
-      gfile.print(" driven low. waiting for an upload from serial or ethernet...");
+      gfile.println(" driven low. waiting for an upload from serial or ethernet...");
       steps = 1; //will need to wait for an upload from serial or ethernet before jumping to the firmware
+    }
+    else if ((GPBR->SYS_GPBR[0] & firmwareUpdateBit) == firmwareUpdateBit) //firmware want to be updated
+    {
+      gfile.println("firmware wants to be updated");
+      gfile.println("waiting for an upload from serial or ethernet...");
+      GPBR->SYS_GPBR[0] &= ~firmwareUpdateBit; //reset update bit
+      steps = 1; //wait for an upload
     }
     else //if no update is needed
     {
@@ -185,6 +204,21 @@ void setup()
     gfile.close();
   }
   else Serial.println("sd init error!");
+#else
+  if (!digitalRead(updatePin)) //if pin is driven low
+  {
+    steps = 1; //wait for an upload from serial
+  }
+  else if ((GPBR->SYS_GPBR[0] & firmwareUpdateBit) == firmwareUpdateBit) //firmware want to be updated
+  {
+    GPBR->SYS_GPBR[0] &= ~firmwareUpdateBit; //reset update bit
+    steps = 1; //wait for an upload from serial
+  }
+  else //if no update is needed
+  {
+    bootJump(); //jump to firmware
+  }
+#endif
 }
 
 /*
@@ -205,11 +239,27 @@ uint8_t receive(uint8_t data, uint16_t length)
   return 0;
 }
 
+#ifdef HAS_ETHERNET
 /*
  * check incoming ethernet data periodically
  */
 void echeck()
 {
+  static unsigned char esteps = 0; //control ethernet incoming data reading
+  if (esteps == 0 && steps == 1) esteps = 1; //if ethernet reading do nothing and we need to check for data, begin checking data
+  client = server.available(); //Check if a client is connected and has data available for reading
+  if (client) //if a client is connected and has data available
+  {
+    data = client.read(); //read one byte from received data
+    if (esteps == 1) //if we are receiving message header
+    {
+      static dcnMsgHeader header;
+      header.fromRawData(data);
+    }
+  }
+  
+  //all of the above is for reference only
+  /*
   client = server.available(); //Check if a client is connected and has data available for reading
   if (client) //if a client is connected and has data available
   {
@@ -319,6 +369,24 @@ void echeck()
       }
     }
     
+  }*/
+}
+#endif
+
+/*
+ * check serial incoming data
+ */
+void scheck()
+{
+  static unsigned char ssteps = 0; //control serial incoming data reading
+  if (ssteps == 0 && steps == 1) ssteps = 1; //serial data reading do nothing and we need to check for incoming data so begin to check
+  if (Serial.available()) //if data is available for reading
+  {
+    data = Serial.read(); //read one byte
+    if (ssteps == 1)
+    {
+      
+    }
   }
 }
 
@@ -326,8 +394,10 @@ void loop()
 {
   if (steps >= 1) //if we need to wait for an upload from ethernet or serial
   {
+    scheck(); //check for serial incoming data
+#ifdef HAS_ETHERNET
     echeck(); //check ethernet incoming data
-    //check for upload from serial
+#endif
     if ((millis() - blinkTime) >= 1000) //toggle led every 1000 ms to signal user we are waiting for upload
     {
       digitalWrite(statusPin, !blinkStatus); //toggle led status
