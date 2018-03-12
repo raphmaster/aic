@@ -18,7 +18,7 @@
 #include <SD.h> //to use sd card
 #include <Ethernet.h> //to use wiznet ethernet shield
 #endif
-#include <dcnMsgHeader.hpp>
+#include <msg.hpp>
 
 #define moduleID 0 //module id in daisy chain uart configuration (all module in bootloader mode will have same id, message will be read by the first one in chain)
 #define updatePin 2 //pin to wait for an firmware upload from serial or ethernet (drive pin 2 low during reset to avoid short circuit)
@@ -39,12 +39,12 @@
 
 #ifdef HAS_ETHERNET
 EthernetServer server(1025); //Initialize ethernet server on port 80
-EthernetClient client; //generic client object (only one client can be connected at a time on one server)
+
 File gfile; //generic file object reused several times because only one file can be opened at a time
 #endif
 uint32_t blinkTime = 0; //used to store millis for blinking
 bool blinkStatus = HIGH; //used to store blink status
-uint8_t data; //received data
+
 uint8_t steps = 0; //used to control code execution
 uint16_t pageSize; //stores reveiving page size
 uint8_t buf[bufferSize]; //multi-use buffer
@@ -221,40 +221,31 @@ void setup()
 #endif
 }
 
-/*
- * receive data in internal buffer until length
- * data: data to store in buffer
- * length: number of bytes to receive before restarting buffer
- * return: 1 if length bytes have been received restarting to write data at the beginning of buffer
- */
-uint8_t receive(uint8_t data, uint16_t length)
-{
-  buf[bufIterator] = data; //store data
-  bufIterator++;
-  if (bufIterator >= length) //if we received all data
-  {
-    bufIterator = 0; //reset iterator
-    return 1;
-  }
-  return 0;
-}
-
 #ifdef HAS_ETHERNET
 /*
  * check incoming ethernet data periodically
  */
 void echeck()
 {
-  static unsigned char esteps = 0; //control ethernet incoming data reading
-  if (esteps == 0 && steps == 1) esteps = 1; //if ethernet reading do nothing and we need to check for data, begin checking data
-  client = server.available(); //Check if a client is connected and has data available for reading
-  if (client) //if a client is connected and has data available
+  static unsigned char _steps = 0; //control ethernet incoming data reading
+  static EthernetClient _client; //ethernet client object (only one client can be connected at a time on one server)
+  static unsigned char _data; //received data
+  static dcn::msg _msg; //dcn message
+  if (_steps == 0 && steps == 1) _steps = 1; //if ethernet reading do nothing and we need to check for data, begin checking data
+  _client = server.available(); //Check if a client is connected and has data available for reading
+  if (_client) //if a client is connected and has data available
   {
-    data = client.read(); //read one byte from received data
-    if (esteps == 1) //if we are receiving message header
+    _data = _client.read(); //read one byte from received data
+    if (_steps == 1) //if we need to check for incoming data
     {
-      static dcnMsgHeader header;
-      header.fromRawData(data);
+      if (_msg.fromRawData(_data)) //if message is all received
+      {
+        _steps++;
+      }
+    }
+    else if (_steps == 2)
+    {
+      
     }
   }
   
@@ -378,12 +369,13 @@ void echeck()
  */
 void scheck()
 {
-  static unsigned char ssteps = 0; //control serial incoming data reading
-  if (ssteps == 0 && steps == 1) ssteps = 1; //serial data reading do nothing and we need to check for incoming data so begin to check
+  static unsigned char _steps = 0; //control serial incoming data reading
+  static unsigned char _data; //received data
+  if (_steps == 0 && steps == 1) _steps = 1; //serial data reading do nothing and we need to check for incoming data so begin to check
   if (Serial.available()) //if data is available for reading
   {
-    data = Serial.read(); //read one byte
-    if (ssteps == 1)
+    _data = Serial.read(); //read one byte
+    if (_steps == 1)
     {
       
     }
