@@ -6,7 +6,7 @@
 #define msg_hpp
 
 #include <msgHeader.hpp>
-#include <utils.hpp>
+#include <cont.hpp>
 
 namespace dcn
 {
@@ -20,7 +20,7 @@ namespace dcn
 	    msgHeader _header; //message header
 	    unsigned char _buffer[maxDataSize]; //internal data buffer
 	    unsigned char _steps; //fromRawData control steps
-	    cont _cont; //data buffer container
+	    utils::cont _cont; //data buffer container
     };
 }
 

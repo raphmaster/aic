@@ -1,6 +1,6 @@
-#include <utils.hpp>
+#include <cont.hpp>
 
-namespace dcn
+namespace utils
 {
     /*
      * constructs an array container of length char

@@ -46,4 +46,4 @@ bootloader:
 	-else jump to firmware
     -implements inter module/chain message system
     -specific message id puts firmware in bootloader mode
-    -
+    -specific message toggle having ethernet, recall dcn::init or restart completly

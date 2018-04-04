@@ -5,7 +5,7 @@
 #ifndef utils_hpp
 #define utils_hpp
 
-namespace dcn
+namespace utils
 {
     class cont
     {
