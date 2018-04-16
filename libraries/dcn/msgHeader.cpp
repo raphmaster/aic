@@ -1,4 +1,5 @@
-#include  <msgHeader.hpp>
+#include <msgHeader.hpp>
+#include <endian.hpp>
 
 namespace dcn
 {
@@ -87,6 +88,7 @@ bool msgHeader::fromRawData(unsigned char data)
 	if (_type == msgType::inChain)
 	{
 	   ((unsigned char*)_dataSize)[1] = data; //save byte 1 of data size
+	   _dataSize = endian::nrev16(_dataSize); //convert dataSize to host endianess
 	   _steps = 0; //reset steps
 	   return true; //message header recovered
 	}
@@ -157,6 +159,7 @@ bool msgHeader::fromRawData(unsigned char data)
 	if (_type == msgType::outChain)
 	{
 	    ((unsigned char*)_dataSize)[1] = data; //save byte 1 of data size
+	    _dataSize = endian::nrev16(_dataSize); //convert endianess
 	    _steps = 0; //reset steps
 	    return true; //recovered message header
 	}

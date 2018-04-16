@@ -20,9 +20,9 @@ class msgHeader
 	unsigned short getDataSize() const;
     private:
 	msgType _type; //message header type
-	unsigned int _sourceIp; //source ip
+	unsigned int _sourceIp; //source ip in network byte order
 	unsigned char _sourceId; //source id
-	unsigned int _destinationIp; //destination ip
+	unsigned int _destinationIp; //destination ip in network byte order
 	unsigned char _destinationId; //destination id
 	msgId _id; //message id
 	unsigned short _dataSize; //message data size

@@ -16,6 +16,7 @@
 #include <dcn.hpp>
 #include <SPI.h> //ethernet and sd uses spi
 #include <SD.h> //to use sd card
+#include <sam3x8e_hal.hpp> //sam3x8e hardware abstraction layer
 
 #define moduleID 0 //module id in daisy chain uart configuration (all module in bootloader mode will have same id, message will be read by the first one in chain)
 #define UPDATE_PIN 2 //pin to wait for an firmware upload from serial or ethernet (drive pin 2 low during reset to avoid short circuit)
@@ -23,6 +24,7 @@
 #define UPDATE_BIN "update.bin" //firmware filename
 #define UPDATE_LOG "update.log" //update log
 #define FIRMWARE_START_PAGE 190 //start page of firmware in flash 0
+#define BAUD 115200 //serial communication speed
 #define MAC { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED } // the media access control (ethernet hardware) address of a module in bootloader mode
 #define IP { 192, 168, 0, 110 } //the IP address of a module with ethernet in bootloader mode
 /*#define firmwareUploadCmd 'F'
@@ -31,7 +33,7 @@
 #define endCmd 'E'
 #define verifyCmd 'V'
 #define bufferSize 256*/
-#define UPDATE_BIT 0
+//#define UPDATE_BIT 0
 
 File gfile; //generic file object reused several times because only one file can be opened at a time
 
@@ -152,15 +154,15 @@ void setup()
 {
   pinMode(UPDATE_PIN, INPUT_PULLUP); //configure pin to update from serial or ethernet
   pinMode(STATUS_PIN, OUTPUT); //config status pin
-  digitalWrite(STATUS_PIN, HIGH); //say that we are in bootloader mode
-  pinMode(DCN_SD_SS, OUTPUT); //config sd card pin
-  digitalWrite(DCN_SD_SS, HIGH); //we dont wanna talk to sd card first
+  hal::digitalWrite(STATUS_PIN, HIGH); //say that we are in bootloader mode
+  pinMode(hal::pin::sdss, OUTPUT); //config sd card pin
+  hal::digitalWrite(hal::pin::sdss, HIGH); //we dont wanna talk to sd card first
   unsigned char mac[] = MAC; //default bootloader mac
   unsigned char ip[] = IP; //default bootloader ip
-  dcn::init(mac, ip); //init dcn communication
+  dcn::init(BAUD, mac, ip); //init dcn communication
   if (dcn::ethernet) //if we have an ethernet shield
   {
-    if (SD.begin(DCN_SD_SS)) //if sd init successfull
+    if (SD.begin(hal::pin::sdss)) //if sd init successfull
     {
       gfile = SD.open(UPDATE_LOG, FILE_WRITE); //open or create boot log
       gfile.println("sd init success"); //log sd init success
@@ -178,11 +180,11 @@ void setup()
         gfile.println(" driven low. waiting for an upload from serial or ethernet...");
         steps = 1; //will need to wait for an upload from serial or ethernet before jumping to the firmware
       }
-      else if ((GPBR->SYS_GPBR[0] & (0x1 << UPDATE_BIT)) == (0x1 << UPDATE_BIT)) //firmware want to be updated
+      else if ((GPBR->SYS_GPBR[0] & (0x1 << hal::gpbr::bit::update)) == (0x1 << hal::gpbr::bit::update)) //firmware want to be updated
       {
         gfile.println("firmware wants to be updated");
         gfile.println("waiting for an upload from serial or ethernet...");
-        GPBR->SYS_GPBR[0] &= ~(0x1 << UPDATE_BIT); //reset update bit
+        GPBR->SYS_GPBR[0] &= ~(0x1 << hal::gpbr::bit::update); //reset update bit
         steps = 1; //wait for an upload
       }
       else //if no update is needed
@@ -192,7 +194,7 @@ void setup()
       }
       gfile.close();
     }
-    //else sd init not success, cant continue, find a way to tell user
+    //else sd init not success, cant continue, find a way to tell user (ex: send message periodically in loop)
   }
   else
   {
@@ -200,9 +202,9 @@ void setup()
     {
       steps = 1; //wait for an upload from serial
     }
-    else if ((GPBR->SYS_GPBR[0] & (0x1 << UPDATE_BIT)) == (0x1 << UPDATE_BIT)) //firmware want to be updated
+    else if ((GPBR->SYS_GPBR[0] & (0x1 << hal::gpbr::bit::update)) == (0x1 << hal::gpbr::bit::update)) //firmware want to be updated
     {
-      GPBR->SYS_GPBR[0] &= ~(0x1 << UPDATE_BIT); //reset update bit
+      GPBR->SYS_GPBR[0] &= ~(0x1 << hal::gpbr::bit::update); //reset update bit
       steps = 1; //wait for an upload from serial
     }
     else //if no update is needed
@@ -362,7 +364,7 @@ void loop()
   {
     if ((millis() - blinkTime) >= 1000) //toggle led every 1000 ms to signal user we are waiting for upload
     {
-      digitalWrite(STATUS_PIN, !blinkStatus); //toggle led status
+      hal::digitalWrite(STATUS_PIN, !blinkStatus); //toggle led status
       blinkStatus = !blinkStatus; //save new status
       blinkTime = millis(); //save new time
     }
