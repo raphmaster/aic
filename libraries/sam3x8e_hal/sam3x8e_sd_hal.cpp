@@ -107,7 +107,7 @@ namespace hal
 	/*
 	 * read size bytes from opened file and save them to dest
 	 */
-	bool read(unsigned char * dest, unsigned short size)
+	bool read(char * dest, unsigned short size)
 	{
 	    if (_file.read(dest, size) <= 0) return false;
 	    return true;
@@ -116,7 +116,7 @@ namespace hal
 	/*
 	 * write size bytes from src to opened file
 	 */
-	bool write(const unsigned char * src, unsigned short size)
+	bool write(const char * src, unsigned short size)
 	{
 	    if (_file.write(src, size) == size) return true;
 	    return false;

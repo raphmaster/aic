@@ -1,13 +1,11 @@
 #include <dcn.hpp>
 #include <tasks.hpp>
 #include <msg.hpp>
-#include <gpbr_hal.hpp>
 #include <uart_hal.hpp>
 #include <ethernet_hal.hpp>
 
 namespace dcn
 {
-    unsigned char ethernet = 0; //having ethernet
     namespace
     {
 	//check serial incoming data
@@ -39,15 +37,14 @@ namespace dcn
      * mac: mac address pointer
      * ip: ip address pointer
      */
-    void init(unsigned int baud, const unsigned char * mac, const unsigned char * ip)
+    bool init(unsigned int baud, const unsigned char * mac, const unsigned char * ip)
     {
-	ethernet = (hal::gpbr::read(0) & (0x1 << hal::gpbr::bit::ethernet)) >> hal::gpbr::bit::ethernet; //recover ethernet configuration
 	hal::uart::init(baud); //init serial port
 	tasks::registerTask(_serialCheck); //register serial check task
-	if (ethernet)
+	if (hal::ethernet::init(mac, ip)) //if ethernet init success
 	{
-	    hal::ethernet::init(mac, ip); //initialize ethernet communication
 	    tasks::registerTask(_ethernetCheck); //register ethernet check task
 	}
+	return true; //always success
     }
 }

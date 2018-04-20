@@ -25,8 +25,8 @@ namespace hal
 	unsigned int size(); //get opened file size in bytes
 	unsigned int position(); //get current position within opened file
 	bool seek(unsigned int pos); //go to pos in opened file
-	bool read(unsigned char * dest, unsigned short size); //read size bytes from opened file and save them to dest
-	bool write(const unsigned char * src, unsigned short size); //write size bytes from src to opened file
+	bool read(char * dest, unsigned short size); //read size bytes from opened file and save them to dest
+	bool write(const char * src, unsigned short size); //write size bytes from src to opened file
     }
 }
 

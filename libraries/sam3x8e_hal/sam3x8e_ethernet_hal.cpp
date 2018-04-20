@@ -1,4 +1,6 @@
 #include <ethernet_hal.hpp>
+#include <gpbr_hal.hpp>
+#include <sam3x8e_hal.hpp>
 #include <Ethernet.h>
 
 namespace hal
@@ -16,14 +18,19 @@ namespace hal
 	* mac: pointer to 6 chars array
 	* ip: pointer to 4 chars array
 	*/
-	char init(const unsigned char * mac, const unsigned char * ip)
+	bool init(const unsigned char * mac, const unsigned char * ip)
 	{
-	    unsigned char _mac[6];
-	    memcpy(_mac, mac, 6);
-	    unsigned char _ip[4];
-	    memcpy(_ip, ip, 4);
-	    Ethernet.begin(_mac, _ip); //gateway and dns server defaults to ip argument with last byte replaced by 1 and subnet to 255.255.255.0
-	    _server.begin(); //start listening for clients
+	    if (gpbr::read(0) & gpbr::ethernet) //if a ethernet shield is present
+	    {
+		unsigned char _mac[6];
+		memcpy(_mac, mac, 6);
+		unsigned char _ip[4];
+		memcpy(_ip, ip, 4);
+		Ethernet.begin(_mac, _ip); //gateway and dns server defaults to ip argument with last byte replaced by 1 and subnet to 255.255.255.0
+		_server.begin(); //start listening for clients
+		return true; //init success
+	    }
+	    return false; //init failure, no ethernet shield
 	}
 
 	/*

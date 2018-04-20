@@ -11,20 +11,19 @@
  * reset update bit at the end of firmware update
  */
 
+#include <sam3x8e_hal.hpp> //sam3x8e hardware abstraction layer
+#include <hal.hpp>
 #include <msg.hpp>
 #include <tasks.hpp>
 #include <dcn.hpp>
-#include <SPI.h> //ethernet and sd uses spi
-#include <SD.h> //to use sd card
-#include <hal.hpp>
-#include <sam3x8e_hal.hpp> //sam3x8e hardware abstraction layer
 
-#define moduleID 0 //module id in daisy chain uart configuration (all module in bootloader mode will have same id, message will be read by the first one in chain)
-#define UPDATE_PIN 2 //pin to wait for an firmware upload from serial or ethernet (drive pin 2 low during reset to avoid short circuit)
-#define STATUS_PIN 13 //pin to tell status of the device
+//#define moduleID 0 //module id in daisy chain uart configuration (all module in bootloader mode will have same id, message will be read by the first one in chain)
+//#define UPDATE_PIN 2 //pin to wait for an firmware upload from serial or ethernet (drive pin 2 low during reset to avoid short circuit)
+//#define STATUS_PIN 13 //pin to tell status of the device
 #define UPDATE_BIN "update.bin" //firmware filename
 #define UPDATE_LOG "update.log" //update log
-#define FIRMWARE_START_PAGE 190 //start page of firmware in flash 0
+//#define BOOT_LOG "boot.log" //boot log
+//#define FIRMWARE_START_PAGE 190 //start page of firmware in flash 0
 #define BAUD 115200 //serial communication speed
 #define MAC { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED } // the media access control (ethernet hardware) address of a module in bootloader mode
 #define IP { 192, 168, 0, 110 } //the IP address of a module with ethernet in bootloader mode
@@ -35,57 +34,60 @@
 #define verifyCmd 'V'
 #define bufferSize 256*/
 //#define UPDATE_BIT 0
-#define sdss 4
-#define ethss 10
+//#define sdss 4
+//#define ethss 10
 
-File gfile; //generic file object reused several times because only one file can be opened at a time
+//File gfile; //generic file object reused several times because only one file can be opened at a time
 
-uint32_t blinkTime = 0; //used to store millis for blinking
-bool blinkStatus = HIGH; //used to store blink status
+//uint32_t blinkTime = 0; //used to store millis for blinking
+//bool blinkStatus = HIGH; //used to store blink status
 
-uint8_t steps = 0; //used to control code execution
+//uint8_t steps = 0; //used to control code execution
 /*uint16_t pageSize; //stores reveiving page size
 uint8_t buf[bufferSize]; //multi-use buffer
 uint16_t bufIterator = 0; //buffer iterator*/
 
 //set flash wait state in flash mode register from ram function because register cannot be written during corresponding flash read
-__attribute__ ((section(".ramfunc")))
+/*__attribute__ ((section(".ramfunc")))
 void setFMR(Efc* efc, uint32_t value)
 {
   efc->EEFC_FMR = (value & EEFC_FMR_FWS_Msk); //change fmr
-}
+}*/
 
 //perform firmware programming from file on sd card
 bool sdUpdate()
 {
-  if (SD.exists(UPDATE_BIN))
+  if (hal::sd::exists(UPDATE_BIN))
   {
-    gfile = SD.open(UPDATE_LOG, FILE_WRITE); //log starting update
-    gfile.print(UPDATE_BIN);
-    gfile.println(" found! starting update...");
-    gfile.close();
-    gfile = SD.open(UPDATE_BIN); //open firmware read-only
-    uint32_t size = gfile.size(); //get firmware size
-    uint8_t catchError = 0; //used to catch errors (0 means ok, others error codes)
-    if (size <= ((IFLASH0_NB_OF_PAGES + IFLASH1_NB_OF_PAGES - FIRMWARE_START_PAGE) * IFLASH0_PAGE_SIZE)) //check if size is ok
+    hal::sd::open(UPDATE_LOG, hal::sd::rw); //log starting update
+    hal::sd::write(UPDATE_BIN, 10);
+    hal::sd::write(" found! starting update...\n", 27);
+    hal::sd::close();
+    hal::sd::open(UPDATE_BIN, hal::sd::ro); //open firmware read-only
+    unsigned int size = hal::sd::size(); //get firmware size
+    unsigned char catchError = 0; //used to catch errors (0 means ok, others error codes)
+    //if (size <= ((IFLASH0_NB_OF_PAGES + IFLASH1_NB_OF_PAGES - FIRMWARE_START_PAGE) * IFLASH0_PAGE_SIZE)) //check if size is ok
+    if (size <= ((hal::flash::maxPage - hal::flash::fsp) * hal::flash::pageSize)) //check if size is ok
     {
-      uint32_t efcStatus; //store efc status before testing if an error has occured
-      uint8_t page[IFLASH0_PAGE_SIZE]; //declare page buffer
-      uint32_t* buf = (uint32_t*)IFLASH0_ADDR; //Retrieve page latch buffer start address
-      Efc* efcIndex; //placeholder to calculate on which efc to write
-      uint32_t (*iap)(uint32_t, uint32_t); //delcare iap function
-      iap = (uint32_t (*)(uint32_t, uint32_t))(*(uint32_t*)CHIP_FLASH_IAP_ADDRESS); //retrieve iap function address from nmi vector in rom because efc command on flash cant be executed from the same flash bank
-      for (uint16_t x = 0; x < (size / IFLASH0_PAGE_SIZE) + ((size % IFLASH0_PAGE_SIZE) ? 1 : 0); ++x) //for each page to write
+//      unsigned int efcStatus; //store efc status before testing if an error has occured
+      char page[hal::flash::pageSize]; //declare page buffer
+//      unsigned int * buf = (unsigned int *)IFLASH0_ADDR; //Retrieve page latch buffer start address
+//      Efc* efcIndex; //placeholder to calculate on which efc to write
+//      unsigned int (*iap)(unsigned int, unsigned int); //delcare iap function
+//      iap = (unsigned int (*)(unsigned int, unsigned int))(*(unsigned int *)CHIP_FLASH_IAP_ADDRESS); //retrieve iap function address from nmi vector in rom because efc command on flash cant be executed from the same flash bank
+      //for (unsigned short x = 0; x < ((size / IFLASH0_PAGE_SIZE) + ((size % IFLASH0_PAGE_SIZE) ? 1 : 0)); ++x) //for each page to write
+      for (unsigned short x = 0; x < ((size / hal::flash::pageSize) + ((size % hal::flash::pageSize) ? 1 : 0)); ++x) //for each page to write
       {
-        gfile.read(page, IFLASH0_PAGE_SIZE); //read one page from firmware file and save it to buffer
-        for (uint8_t y = 0; y < (IFLASH0_PAGE_SIZE / 4); ++y) buf[y] = *(uint32_t*)(&page[y * 4]); //only 32-bit width copy authorized to latch buffer
-        efcIndex = (x / (IFLASH0_NB_OF_PAGES - FIRMWARE_START_PAGE -1)) ? EFC1 : EFC0; //calculate with which efc we need to work
-        __disable_irq(); //ensure no flash read will be done during change to fmr or programming to the same flash bank
-        setFMR(efcIndex, EEFC_FMR_FWS(CHIP_FLASH_WRITE_WAIT_STATE)); //set flash wait state to 6 when writing
-        efcStatus = iap((efcIndex == EFC0) ? 0 : 1, EEFC_FCR_FCMD(0x03) | EEFC_FCR_FARG((efcIndex == EFC0) ? FIRMWARE_START_PAGE + x : x - (IFLASH0_NB_OF_PAGES - FIRMWARE_START_PAGE)) | EEFC_FCR_FKEY(0x5A)); //call iap function from rom to send command to efc
-        setFMR(efcIndex, EEFC_FMR_FWS(4)); //set flash wait state to 6 when writing
-        __enable_irq(); //re-enable irqs
-        if ((efcStatus & (EEFC_FSR_FRDY | EEFC_FSR_FCMDE | EEFC_FSR_FLOCKE)) != EEFC_FSR_FRDY)
+        hal::sd::read(page, hal::flash::pageSize); //read one page from firmware file and save it to buffer
+        //for (unsigned char y = 0; y < (IFLASH0_PAGE_SIZE / 4); ++y) buf[y] = *(unsigned int *)(&page[y * 4]); //only 32-bit width copy authorized to latch buffer
+        //efcIndex = (x / (IFLASH0_NB_OF_PAGES - FIRMWARE_START_PAGE -1)) ? EFC1 : EFC0; //calculate with which efc we need to work
+        //__disable_irq(); //ensure no flash read will be done during change to fmr or programming to the same flash bank
+        //setFMR(efcIndex, EEFC_FMR_FWS(CHIP_FLASH_WRITE_WAIT_STATE)); //set flash wait state to 6 when writing
+        //efcStatus = iap((efcIndex == EFC0) ? 0 : 1, EEFC_FCR_FCMD(0x03) | EEFC_FCR_FARG((efcIndex == EFC0) ? FIRMWARE_START_PAGE + x : x - (IFLASH0_NB_OF_PAGES - FIRMWARE_START_PAGE)) | EEFC_FCR_FKEY(0x5A)); //call iap function from rom to send command to efc
+        //setFMR(efcIndex, EEFC_FMR_FWS(4)); //set flash wait state to 6 when writing
+        //__enable_irq(); //re-enable irqs
+        //if ((efcStatus & (EEFC_FSR_FRDY | EEFC_FSR_FCMDE | EEFC_FSR_FLOCKE)) != EEFC_FSR_FRDY)
+        if (!hal::flash::write((unsigned int *)page, hal::flash::fsp + x)) //if flash write is not success
         {
           catchError = 2; //throw programming error
           break; //exit for loop
@@ -93,27 +95,30 @@ bool sdUpdate()
       }
     }
     else catchError = 1; //update firmware file is too big
-    gfile.close(); //close the firmware file
-    gfile = SD.open(UPDATE_LOG, FILE_WRITE); //open log to save information
+    hal::sd::close(); //close the firmware file
+    hal::sd::open(UPDATE_LOG, hal::sd::rw); //open log to save information
     if (catchError) //if an error has been catched
     {
-      if (catchError == 1) gfile.println("update firmware file is too big!");
-      else if (catchError == 2) gfile.println("flash programming error!");
+      if (catchError == 1) hal::sd::write("update firmware file is too big!\n", 33);
+      else if (catchError == 2) hal::sd::write("flash programming error!\n", 25);
     }
     else //verify flash
     {
-      gfile.println("flash programming done. verifying...");
-      gfile.close();
-      gfile = SD.open(UPDATE_BIN); //open firmware file read-only
-      uint8_t page[IFLASH0_PAGE_SIZE]; //declare page buffer
-      uint32_t* pageStart; //used to store page start address
-      for (uint16_t x = 0; x < (size / IFLASH0_PAGE_SIZE) + ((size % IFLASH0_PAGE_SIZE) ? 1 : 0); ++x) //for each page to verify
+      hal::sd::write("flash programming done. verifying...\n", 38);
+      hal::sd::close();
+      hal::sd::open(UPDATE_BIN, hal::sd::ro); //open firmware file read-only
+      char page[IFLASH0_PAGE_SIZE]; //declare page buffer
+      const unsigned int * rpp; //used to store read page pointer
+      //for (unsigned short x = 0; x < (size / IFLASH0_PAGE_SIZE) + ((size % IFLASH0_PAGE_SIZE) ? 1 : 0); ++x) //for each page to verify
+      for (unsigned short x = 0; x < ((size / hal::flash::pageSize) + ((size % hal::flash::pageSize) ? 1 : 0)); ++x)  //for each page to verify
       {
-        gfile.read(page, IFLASH0_PAGE_SIZE); //read one page from firmware file and save it to buffer
-        pageStart = (uint32_t*)(IFLASH0_ADDR + (FIRMWARE_START_PAGE * IFLASH0_PAGE_SIZE) + (x * IFLASH0_PAGE_SIZE)); //Retrieve page start address
-        for (uint8_t y = 0; y < (IFLASH0_PAGE_SIZE / 4); ++y) //for each 32-bit word in page
+        hal::sd::read(page, hal::flash::pageSize); //read one page from firmware file and save it to buffer
+        //pageStart = (unsigned int *)(IFLASH0_ADDR + (FIRMWARE_START_PAGE * IFLASH0_PAGE_SIZE) + (x * IFLASH0_PAGE_SIZE)); //Retrieve page start address
+        rpp = hal::flash::read(hal::flash::fsp + x); //save pointer to read page
+        for (unsigned short y = 0; y < (hal::flash::pageSize / 4); ++y) //for each 32-bit word in page
         {
-          if (*(uint32_t*)(&page[y * 4]) != pageStart[y]) //if file and programmed values are different
+          //if (*(unsigned int *)(&page[y * 4]) != pageStart[y]) //if file and programmed values are different
+          if (rpp[y] != ((unsigned int *)page)[y]) //if programmed and file values are different
           {
             catchError = 3; //throw flash verification error
             break; //exit for loop
@@ -121,21 +126,21 @@ bool sdUpdate()
         }
         if (catchError) break; //exit for loop if an error has been catched
       }
-      gfile.close(); //close the firmware file
-      gfile = SD.open(UPDATE_LOG, FILE_WRITE); //open log to save information
+      hal::sd::close(); //close the firmware file
+      hal::sd::open(UPDATE_LOG, hal::sd::rw); //open log to save information
     }
     if (catchError) //if an error has been catched
     {
-      if (catchError == 3) gfile.println("flash verifying error!");
+      if (catchError == 3) hal::sd::write("flash verifying error!\n", 23);
     }
     else
     {
-      gfile.println("verify successfull!");
-      SD.remove(UPDATE_BIN); //remove update firmware file
-      gfile.print(UPDATE_BIN);
-      gfile.println(" deleted");
+      hal::sd::write("verify successfull!\n", 20);
+      hal::sd::rm(UPDATE_BIN); //remove update firmware file
+      hal::sd::write(UPDATE_BIN, 10);
+      hal::sd::write(" deleted\n", 9);
     }
-    gfile.close();
+    hal::sd::close();
     if (catchError) return false; //if we encountered errors, return false
     else return true;
   }
@@ -143,7 +148,7 @@ bool sdUpdate()
 }
 
 //jump to the firmware
-void bootJump()
+/*void bootJump()
 {
   __disable_irq(); //ensure no interrupts will be called until we are fully jumped to firmware
   uint32_t* vtor = (uint32_t*)(IFLASH0_ADDR + (FIRMWARE_START_PAGE * IFLASH0_PAGE_SIZE)); //calculate firmware vector table start address
@@ -151,70 +156,13 @@ void bootJump()
   __set_MSP(*vtor); //set main stack pointer to the one found in vtor of the firmware
   ((void(*)(void))vtor[1])(); //set the program counter to the reset handler in vtor via function call
   //firmware should re-enable irqs
-}
+}*/
 
 void setup()
 {
-  hal::gpio::config(UPDATE_PIN, hal::gpio::pinConfig{hal::gpio::digital, hal::gpio::input_pullup}); //configure pin to update from serial or ethernet
-  hal::gpio::config(STATUS_PIN, hal::gpio::pinConfig{hal::gpio::digital, hal::gpio::output}); //config status pin
-  hal::gpio::write(STATUS_PIN, true); //say that we are in bootloader mode
-  hal::gpio::config(sdss, hal::gpio::pinConfig{hal::gpio::digital, hal::gpio::output}); //config sd card pin
-  hal::gpio::write(sdss, true); //we dont wanna talk to sd card first
   unsigned char mac[] = MAC; //default bootloader mac
   unsigned char ip[] = IP; //default bootloader ip
-  dcn::init(BAUD, mac, ip); //init dcn communication
-  if (dcn::ethernet) //if we have an ethernet shield
-  {
-    if (SD.begin(sdss)) //if sd init successfull
-    {
-      gfile = SD.open(UPDATE_LOG, FILE_WRITE); //open or create boot log
-      gfile.println("sd init success"); //log sd init success
-      if (SD.exists(UPDATE_BIN)) //if update firmware file exists
-      {
-        gfile.close(); //close log file because sdUpdate will reopen it
-        if (sdUpdate()) bootJump(); //do the flash programming, if success jump to firmware
-        steps = 1; //else wait for an upload
-        gfile = SD.open(UPDATE_LOG, FILE_WRITE); //re-open log file
-      }
-      else if (!hal::gpio::read(UPDATE_PIN)) //if no update file on the sd card and pin is driven low
-      {
-        gfile.print("pin "); //pin 2 driven low, waiting for an upload from serial or ethernet
-        gfile.print(UPDATE_PIN);
-        gfile.println(" driven low. waiting for an upload from serial or ethernet...");
-        steps = 1; //will need to wait for an upload from serial or ethernet before jumping to the firmware
-      }
-      else if ((hal::gpbr::read(0) & (0x1 << hal::gpbr::bit::update)) == (0x1 << hal::gpbr::bit::update)) //firmware want to be updated
-      {
-        gfile.println("firmware wants to be updated");
-        gfile.println("waiting for an upload from serial or ethernet...");
-        hal::gpbr::write(0, hal::gpbr::read(0) & ~(0x1 << hal::gpbr::bit::update)); //reset update bit
-        steps = 1; //wait for an upload
-      }
-      else //if no update is needed
-      {
-        gfile.close();
-        bootJump(); //jump to firmware
-      }
-      gfile.close();
-    }
-    //else sd init not success, cant continue, find a way to tell user (ex: send message periodically in loop)
-  }
-  else
-  {
-    if (!hal::gpio::read(UPDATE_PIN)) //if pin is driven low
-    {
-      steps = 1; //wait for an upload from serial
-    }
-    else if ((hal::gpbr::read(0) & (0x1 << hal::gpbr::bit::update)) == (0x1 << hal::gpbr::bit::update)) //firmware want to be updated
-    {
-      hal::gpbr::write(0, hal::gpbr::read(0) & ~(0x1 << hal::gpbr::bit::update)); //reset update bit
-      steps = 1; //wait for an upload from serial
-    }
-    else //if no update is needed
-    {
-      bootJump(); //jump to firmware
-    }
-  }
+  hal::boot::init(BAUD, mac, ip); //init bootloader sequence
 }
 
 /*
@@ -342,34 +290,8 @@ void echeck()
   }*/
 }
 
-/*
- * check serial incoming data
- */
-void scheck()
-{
-  /*static unsigned char _steps = 0; //control serial incoming data reading
-  static unsigned char _data; //received data
-  if (_steps == 0 && steps == 1) _steps = 1; //serial data reading do nothing and we need to check for incoming data so begin to check
-  if (Serial.available()) //if data is available for reading
-  {
-    _data = Serial.read(); //read one byte
-    if (_steps == 1)
-    {
-      
-    }
-  }*/
-}
 
 void loop()
 {
   tasks::doTasks(); //execute registered tasks
-  if (steps >= 1) //if we need to wait for an upload from ethernet or serial
-  {
-    if ((millis() - blinkTime) >= 1000) //toggle led every 1000 ms to signal user we are waiting for upload
-    {
-      hal::gpio::write(STATUS_PIN, !blinkStatus); //toggle led status
-      blinkStatus = !blinkStatus; //save new status
-      blinkTime = millis(); //save new time
-    }
-  }
 }

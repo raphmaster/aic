@@ -10,10 +10,10 @@ namespace hal
 	/*
 	* initialize serial communication at baud rate
 	*/
-	char init(unsigned int baud)
+	bool init(unsigned int baud)
 	{
 	    PORT.begin(baud);
-	    return 1;
+	    return true;
 	}
 
 	/*
@@ -41,5 +41,3 @@ namespace hal
 	}
     }
 }
-
-#undef PORT
